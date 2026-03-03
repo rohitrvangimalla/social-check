@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>@idinsayit</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html{background:#080808}
+  body{background:#080808;font-family:'DM Mono',monospace;color:#f0ede6;overscroll-behavior:none}
+  #root{min-height:100vh}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const PASSWORD = "Qwer8456)";
+
+// ── LOCK SCREEN ───────────────────────────────────────────────────────────────
+function LockScreen({ onUnlock }) {
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState(false);
+  const [shake, setShake] = useState(false);
+  const ref = useRef();
+  useEffect(() => { setTimeout(() => ref.current?.focus(), 200); }, []);
+  const go = () => {
+    if (pw === PASSWORD) { localStorage.setItem("iis_v2_auth","1"); onUnlock(); }
+    else { setErr(true); setShake(true); setPw(""); setTimeout(()=>setShake(false),500); }
+  };
+  return (
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 32px",background:"#080808"}}>
+      <style>{`@keyframes sk{0%,100%{transform:translateX(0)}25%{transform:translateX(-10px)}75%{transform:translateX(10px)}}.sk{animation:sk .4s ease}`}</style>
+      <div style={{marginBottom:48,textAlign:"center"}}>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:11,fontWeight:700,letterSpacing:".22em",color:"#2a2a2a",textTransform:"uppercase",marginBottom:10}}>@idinsayit</div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:"#f0ede6",lineHeight:1}}>Command<br/>Center</div>
+      </div>
+      <div className={shake?"sk":""} style={{width:"100%",maxWidth:300}}>
+        <input ref={ref} type="password" value={pw}
+          onChange={e=>{setPw(e.target.value);setErr(false);}}
+          onKeyDown={e=>e.key==="Enter"&&go()}
+          placeholder="enter password"
+          style={{width:"100%",background:"#111",border:`1.5px solid ${err?"#E1306C":"#1e1e1e"}`,borderRadius:14,color:"#f0ede6",fontFamily:"'DM Mono',monospace",fontSize:16,padding:"18px 20px",outline:"none",letterSpacing:".1em",marginBottom:12,transition:"border-color .2s",textAlign:"center"}}/>
+        {err && <div style={{fontSize:11,color:"#E1306C",textAlign:"center",marginBottom:12,letterSpacing:".06em"}}>wrong password</div>}
+        <button onClick={go} style={{width:"100%",padding:"17px",background:"#f0ede6",color:"#080808",border:"none",borderRadius:14,fontFamily:"'Syne',sans-serif",fontSize:13,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",cursor:"pointer"}}>Unlock</button>
+      </div>
+    </div>
+  );
+}
+
+// ── CONSTANTS ─────────────────────────────────────────────────────────────────
+const TASKS = [
+  {id:"ig_note",   group:"Instagram", label:"Note",                   scheduled:"11:00"},
+  {id:"ig_story",  group:"Instagram", label:"Story",                  scheduled:"11:00"},
+  {id:"ig_post",   group:"Instagram", label:"Post",                   scheduled:"18:00"},
+  {id:"ig_boosts", group:"Instagram", label:"Boosts",                 scheduled:"14:30"},
+  {id:"th_d1",     group:"Threads",   label:"Daily-1",                scheduled:"09:30"},
+  {id:"th_d2",     group:"Threads",   label:"Daily-2",                scheduled:"12:30"},
+  {id:"th_d3",     group:"Threads",   label:"Daily-3",                scheduled:"18:30"},
+  {id:"th_d4",     group:"Threads",   label:"Daily-4",                scheduled:"21:45"},
+  {id:"th_morn",   group:"Threads",   label:"Morning Replies",        scheduled:"10:00"},
+  {id:"th_eve",    group:"Threads",   label:"Evening Replies",        scheduled:"19:15"},
+  {id:"wa_d1",     group:"WhatsApp",  label:"Daily-1",                scheduled:"09:30"},
+  {id:"wa_d2",     group:"WhatsApp",  label:"Daily-2",                scheduled:"09:30"},
+  {id:"wa_d3",     group:"WhatsApp",  label:"Daily-3",                scheduled:"17:30"},
+];
+const GM = {
+  Instagram:{icon:"📸",color:"#E1306C"},
+  Threads:  {icon:"🧵",color:"#9d9dff"},
+  WhatsApp: {icon:"💬",color:"#25D366"},
+};
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const SPEND_TYPES=["Profile","Engagement","Link Clicks","Website","Other"];
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const pad = n => String(n).padStart(2,"0");
+function todayKey(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
+function dateKey(y,m,d){return `${y}-${pad(m+1)}-${pad(d)}`;}
+function daysInMonth(y,m){return new Date(y,m+1,0).getDate();}
+function fmtDate(ds){return new Date(ds+"T00:00:00").toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long"});}
+function parseScheduled(t){const[h,m]=t.split(":").map(Number);return h*60+m;}
+function parseStored(ts){if(!ts)return null;const m=ts.match(/^(\d{1,2}):(\d{2})$/);if(!m)return null;const h=+m[1],mn=+m[2];return(h>23||mn>59)?null:h*60+mn;}
+function parseUserTime(ts){
+  if(!ts)return null;
+  const m=ts.trim().match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/i);if(!m)return null;
+  let h=+m[1],mn=+m[2];const mer=m[3]?.toLowerCase();
+  if(mer==="pm"&&h<12)h+=12;if(mer==="am"&&h===12)h=0;
+  return(h>23||mn>59)?null:`${pad(h)}:${pad(mn)}`;
+}
+function fmt12(t){const[h,m]=t.split(":").map(Number);return `${h%12||12}:${pad(m)}${h>=12?"pm":"am"}`;}
+function delayLabel(diff){
+  if(diff===null)return null;
+  const abs=Math.abs(diff),h=Math.floor(abs/60),m=abs%60;
+  const lbl=h?`${h}h ${m}m`:`${m}m`;
+  if(diff<=0)return{text:`${lbl} early`,color:"#25D366"};
+  if(diff<=15)return{text:"on time",color:"#25D366"};
+  if(diff<=60)return{text:`+${lbl}`,color:"#f7b500"};
+  return{text:`+${lbl}`,color:"#E1306C"};
+}
+function fmtRupee(n){return `₹${Number(n).toLocaleString("en-IN",{maximumFractionDigits:0})}`;}
+function churnColor(r){if(r<=.15)return"#25D366";if(r<=.30)return"#f7b500";if(r<=.50)return"#ff8c00";return"#E1306C";}
+function churnLbl(r){if(r<=.15)return"Healthy";if(r<=.30)return"Watch it";if(r<=.50)return"Churny";return"Leaking";}
+
+// ── STORAGE ───────────────────────────────────────────────────────────────────
+const sGet=k=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}};
+const sSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
+const sList=p=>{try{return Object.keys(localStorage).filter(k=>k.startsWith(p));}catch{return[];}};
+
+// ── CALC ──────────────────────────────────────────────────────────────────────
+function calcTaskStats(days,data){
+  let total=0,done=0,delays=[];
+  days.forEach(day=>{const d=data[day];if(!d)return;TASKS.forEach(t=>{total++;if(d.checked?.[t.id]){done++;const a=parseStored(d.times?.[t.id]);if(a!=null)delays.push(a-parseScheduled(t.scheduled));}});});
+  const avgDelay=delays.length?Math.round(delays.reduce((a,b)=>a+b,0)/delays.length):null;
+  return{total,done,pct:total?Math.round(done/total*100):0,avgDelay,daysWithData:days.filter(d=>data[d]).length};
+}
+function buildTaskReport(label,days,data){
+  const lines=[`📊 @idinsayit — ${label}\n`];
+  const s=calcTaskStats(days,data);
+  lines.push(`Overall: ${s.done}/${s.total} (${s.pct}%)`);
+  if(s.avgDelay!=null){const dl=delayLabel(s.avgDelay);lines.push(`Avg delay: ${dl.text}`);}
+  lines.push("");
+  ["Instagram","Threads","WhatsApp"].forEach(g=>{
+    lines.push(`${GM[g].icon} ${g}`);
+    TASKS.filter(t=>t.group===g).forEach(task=>{
+      let td=0,tt=0,tdl=[];
+      days.forEach(day=>{const d=data[day];if(!d)return;tt++;if(d.checked?.[task.id]){td++;const a=parseStored(d.times?.[task.id]);if(a!=null)tdl.push(a-parseScheduled(task.scheduled));}});
+      const p=tt?Math.round(td/tt*100):0;
+      const avgD=tdl.length?Math.round(tdl.reduce((a,b)=>a+b,0)/tdl.length):null;
+      const dl=avgD!=null?delayLabel(avgD):null;
+      lines.push(`  ${task.label}: ${td}/${tt} (${p}%)${dl?` · ${dl.text}`:""}`);
+    });lines.push("");
+  });
+  return lines.join("\n");
+}
+
+// ── RING COMPONENT ────────────────────────────────────────────────────────────
+function Ring({pct,color,size=80,stroke=6,label,sub}){
+  const r=(size-stroke)/2,circ=2*Math.PI*r,dash=(pct/100)*circ;
+  return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+      <div style={{position:"relative",width:size,height:size}}>
+        <svg width={size} height={size} style={{transform:"rotate(-90deg)",position:"absolute"}}>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1a1a1a" strokeWidth={stroke}/>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+            strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+            style={{transition:"stroke-dasharray .7s cubic-bezier(.4,0,.2,1)"}}/>
+        </svg>
+        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:17,color:"#f0ede6"}}>{pct}%</span>
+        </div>
+      </div>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:9,color:"#555",letterSpacing:".1em",textTransform:"uppercase"}}>{label}</div>
+        <div style={{fontSize:9,color:"#2e2e2e",marginTop:1}}>{sub}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── LINE CHART ────────────────────────────────────────────────────────────────
+function LineChart({series,xLabels,height=130}){
+  const W=320,H=height,P={t:12,r:8,b:28,l:38};
+  const all=series.flatMap(s=>s.data.filter(v=>v!=null));
+  if(!all.length)return<div style={{height:H,display:"flex",alignItems:"center",justifyContent:"center",color:"#222",fontSize:11,fontStyle:"italic"}}>No data yet</div>;
+  const mn=Math.min(...all),mx=Math.max(...all),rng=mx-mn||1;
+  const cx=i=>P.l+(i/Math.max(xLabels.length-1,1))*(W-P.l-P.r);
+  const cy=v=>P.t+(1-(v-mn)/rng)*(H-P.t-P.b);
+  return(
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{overflow:"visible"}}>
+      {[0,.25,.5,.75,1].map((t,i)=>{const v=mn+t*rng,y=cy(v);return<g key={i}><line x1={P.l} x2={W-P.r} y1={y} y2={y} stroke="#141414" strokeWidth="1"/><text x={P.l-4} y={y+3.5} fill="#252525" fontSize="8" textAnchor="end">{Math.round(v)}</text></g>;})}
+      {xLabels.map((l,i)=><text key={i} x={cx(i)} y={H-P.b+12} fill="#252525" fontSize="7.5" textAnchor="middle">{l}</text>)}
+      {series.map((s,si)=>{
+        const pts=s.data.map((v,i)=>v!=null?[cx(i),cy(v)]:null);
+        let d="";pts.forEach((pt,i)=>{if(!pt)return;const prev=pts.slice(0,i).reverse().find(Boolean);d+=prev?`L${pt[0]},${pt[1]}`:`M${pt[0]},${pt[1]}`;});
+        return<g key={si}><path d={d} fill="none" stroke={s.color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round"/>{pts.map((pt,i)=>pt&&<circle key={i} cx={pt[0]} cy={pt[1]} r="2.5" fill={s.color}/>)}</g>;
+      })}
+    </svg>
+  );
+}
+
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
+function App(){
+  const today=todayKey(),nd=new Date();
+  const [view,setView]=useState("today");
+  const [dayData,setDayData]=useState({checked:{},times:{}});
+  const [editingTime,setEditingTime]=useState(null);
+  const [timeInput,setTimeInput]=useState("");
+  const [timeError,setTimeError]=useState("");
+  const [anim,setAnim]=useState({});
+  const inputRef=useRef();
+  const [allData,setAllData]=useState({});
+  const [weekStats,setWeekStats]=useState(null);
+  const [monthStats,setMonthStats]=useState(null);
+  const [reportMode,setReportMode]=useState("month");
+  const [reportYear,setReportYear]=useState(nd.getFullYear());
+  const [reportMonth,setReportMonth]=useState(nd.getMonth());
+  const [rangeFrom,setRangeFrom]=useState(today);
+  const [rangeTo,setRangeTo]=useState(today);
+  const [reportStats,setReportStats]=useState(null);
+  const [reportDays,setReportDays]=useState([]);
+  const [spendEntries,setSpendEntries]=useState([]);
+  const [spendForm,setSpendForm]=useState({date:today,amount:"",type:"Profile",note:""});
+  const [spendPeriod,setSpendPeriod]=useState("month");
+  const [audEntries,setAudEntries]=useState([]);
+  const [audForm,setAudForm]=useState({date:today,followers:"",follows:"",unfollows:""});
+  const [saved,setSaved]=useState(false);
+  const [showExport,setShowExport]=useState(false);
+  const [exportText,setExportText]=useState("");
+  const [showImport,setShowImport]=useState(false);
+  const [importText,setImportText]=useState("");
+  const [importError,setImportError]=useState("");
+  const [showText,setShowText]=useState(false);
+  const [textContent,setTextContent]=useState("");
+
+  useEffect(()=>{
+    const d=sGet(`iis_${today}`);if(d)setDayData(d);
+    const sp=sGet("iis_spend");if(sp)setSpendEntries(sp);
+    const au=sGet("iis_aud");if(au)setAudEntries(au);
+  },[]);
+
+  useEffect(()=>{sSet(`iis_${today}`,dayData);},[dayData]);
+  useEffect(()=>{sSet("iis_spend",spendEntries);},[spendEntries]);
+  useEffect(()=>{sSet("iis_aud",audEntries);},[audEntries]);
+
+  useEffect(()=>{
+    if(view==="today")return;
+    const keys=sList("iis_").filter(k=>k!=="iis_spend"&&k!=="iis_aud");
+    const data={};keys.forEach(k=>{const d=sGet(k);if(d)data[k.replace("iis_","")]=d;});
+    data[today]=dayData;setAllData(data);
+  },[view,dayData]);
+
+  useEffect(()=>{
+    if(view!=="stats"||!Object.keys(allData).length)return;
+    const wk=Array.from({length:7},(_,i)=>{const d=new Date(nd);d.setDate(d.getDate()-i);return dateKey(d.getFullYear(),d.getMonth(),d.getDate());});
+    const mp=`${nd.getFullYear()}-${pad(nd.getMonth()+1)}`;
+    const mdays=Object.keys(allData).filter(k=>k.startsWith(mp));
+    setWeekStats(calcTaskStats(wk,allData));setMonthStats(calcTaskStats(mdays,allData));
+  },[view,allData]);
+
+  useEffect(()=>{
+    if(view!=="reports"||!Object.keys(allData).length)return;
+    let days=[];
+    if(reportMode==="month"){const dim=daysInMonth(reportYear,reportMonth);days=Array.from({length:dim},(_,i)=>dateKey(reportYear,reportMonth,i+1));}
+    else if(reportMode==="year"){for(let m=0;m<12;m++){const dim=daysInMonth(reportYear,m);for(let d=1;d<=dim;d++)days.push(dateKey(reportYear,m,d));}}
+    else{const f=new Date(rangeFrom+"T00:00:00"),t=new Date(rangeTo+"T00:00:00");for(let d=new Date(f);d<=t;d.setDate(d.getDate()+1))days.push(dateKey(d.getFullYear(),d.getMonth(),d.getDate()));}
+    setReportDays(days);setReportStats(calcTaskStats(days,allData));
+  },[view,allData,reportMode,reportYear,reportMonth,rangeFrom,rangeTo]);
+
+  const toggle=id=>{
+    setAnim(a=>({...a,[id]:true}));setTimeout(()=>setAnim(a=>({...a,[id]:false})),300);
+    setDayData(d=>{const was=!!d.checked[id];if(!was&&!d.times[id])setTimeout(()=>{setEditingTime(id);setTimeInput("");setTimeError("");},60);return{...d,checked:{...d.checked,[id]:!was}};});
+  };
+  const openTimeEdit=(e,id)=>{e.stopPropagation();setEditingTime(id);const ex=dayData.times[id];setTimeInput(ex?fmt12(ex):"");setTimeError("");setTimeout(()=>inputRef.current?.focus(),60);};
+  const saveTime=(useNow=false)=>{
+    if(useNow){const n=new Date();const t=`${pad(n.getHours())}:${pad(n.getMinutes())}`;setDayData(d=>({...d,times:{...d.times,[editingTime]:t}}));setEditingTime(null);return;}
+    if(!timeInput.trim()){saveTime(true);return;}
+    const p=parseUserTime(timeInput);if(!p){setTimeError("Use format: 9:45 or 9:45am");return;}
+    setDayData(d=>({...d,times:{...d.times,[editingTime]:p}}));setEditingTime(null);
+  };
+
+  const doneCount=TASKS.filter(t=>dayData.checked[t.id]).length;
+  const pct=Math.round(doneCount/TASKS.length*100);
+
+  const doExport=()=>{
+    const keys=sList("iis_").filter(k=>k!=="iis_spend"&&k!=="iis_aud");
+    const td={};keys.forEach(k=>{const d=sGet(k);if(d)td[k]=d;});td[`iis_${today}`]=dayData;
+    const blob={version:2,exported:new Date().toISOString(),taskData:td,spend:spendEntries,audience:audEntries};
+    setExportText(JSON.stringify(blob,null,2));setShowExport(true);
+  };
+  const saveAll=()=>{
+    sSet(`iis_${today}`,dayData);sSet("iis_spend",spendEntries);sSet("iis_aud",audEntries);
+    setSaved(true);setTimeout(()=>setSaved(false),2000);doExport();
+  };
+  const doImport=()=>{
+    try{
+      const blob=JSON.parse(importText);
+      if(blob.taskData)Object.entries(blob.taskData).forEach(([k,v])=>sSet(k,v));
+      if(blob.taskData?.[`iis_${today}`])setDayData(blob.taskData[`iis_${today}`]);
+      // support both old (idinsayit_) and new (iis_) format
+      if(blob.taskData){
+        Object.entries(blob.taskData).forEach(([k,v])=>{
+          if(k.startsWith("idinsayit_")){const nk=k.replace("idinsayit_","iis_");sSet(nk,v);}
+        });
+      }
+      if(blob.spend)setSpendEntries(blob.spend);
+      if(blob.audience)setAudEntries(blob.audience);
+      setShowImport(false);setImportText("");setImportError("");
+      alert("✅ Data restored!");
+    }catch{setImportError("Invalid — paste the full export text");}
+  };
+  const showCopy=text=>{setTextContent(text);setShowText(true);};
+
+  const spendInPeriod=p=>{const now=new Date();return spendEntries.filter(e=>{const d=new Date(e.date+"T00:00:00");if(p==="week"){const w=new Date(now);w.setDate(w.getDate()-6);return d>=w;}if(p==="month")return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();if(p==="year")return d.getFullYear()===now.getFullYear();return true;});};
+  const spendTotal=e=>e.reduce((s,x)=>s+x.amount,0);
+  const spendByType=e=>{const m={};e.forEach(x=>{m[x.type]=(m[x.type]||0)+x.amount;});return m;};
+
+  const addSpend=()=>{
+    if(!spendForm.amount||isNaN(+spendForm.amount))return;
+    setSpendEntries(e=>[...e,{id:Date.now(),date:spendForm.date,amount:+spendForm.amount,type:spendForm.type,note:spendForm.note}].sort((a,b)=>a.date.localeCompare(b.date)));
+    setSpendForm(f=>({...f,amount:"",note:""}));
+  };
+
+  const addAud=()=>{
+    if(!audForm.followers)return;
+    const entry={id:Date.now(),date:audForm.date,followers:+audForm.followers,follows:+audForm.follows||0,unfollows:+audForm.unfollows||0};
+    setAudEntries(e=>[...e.filter(x=>x.date!==entry.date),entry].sort((a,b)=>a.date.localeCompare(b.date)));
+    setAudForm(f=>({...f,followers:"",follows:"",unfollows:""}));
+  };
+
+  const curMonthAud=audEntries.filter(e=>{const d=new Date(e.date+"T00:00:00");return d.getFullYear()===nd.getFullYear()&&d.getMonth()===nd.getMonth();});
+  const totFollows=curMonthAud.reduce((s,e)=>s+e.follows,0);
+  const totUnfollows=curMonthAud.reduce((s,e)=>s+e.unfollows,0);
+  const monthChurn=totFollows>0?Math.round(totUnfollows/totFollows*100)/100:null;
+  const aud30=audEntries.filter(e=>{const d=new Date(e.date+"T00:00:00"),w=new Date();w.setDate(w.getDate()-29);return d>=w;});
+
+  const availYears=[...new Set([...Object.keys(allData).map(k=>+k.split("-")[0]).filter(Boolean),nd.getFullYear()])].sort((a,b)=>b-a);
+  const reportLabel=()=>reportMode==="month"?`${MONTHS[reportMonth]} ${reportYear}`:reportMode==="year"?`${reportYear}`:`${rangeFrom} → ${rangeTo}`;
+  const editTask=TASKS.find(t=>t.id===editingTime);
+
+  const buildDailySummary=()=>{
+    const lines=[`📅 ${fmtDate(today)}\n`];
+    ["Instagram","Threads","WhatsApp"].forEach(g=>{
+      lines.push(`${GM[g].icon} ${g}`);
+      TASKS.filter(t=>t.group===g).forEach(t=>{const done=dayData.checked[t.id],ts=dayData.times[t.id];const a=parseStored(ts),diff=a!=null?a-parseScheduled(t.scheduled):null,dl=delayLabel(diff);lines.push(`  ${done?"✅":"❌"} ${t.label} ${fmt12(t.scheduled)}${ts?` → ${fmt12(ts)}${dl?` (${dl.text})`:""}`:`${dl?` (${dl.text})`:""}`}`);});lines.push("");
+    });return lines.join("\n");
+  };
+  const buildSpendSummary=()=>{
+    const e=spendInPeriod(spendPeriod);
+    const lbl=spendPeriod==="week"?"Last 7 days":spendPeriod==="month"?"This month":spendPeriod==="year"?"This year":"All time";
+    const lines=[`💰 @idinsayit spend — ${lbl}\n`,`Total: ${fmtRupee(spendTotal(e))}\n`];
+    const bt=spendByType(e);SPEND_TYPES.filter(t=>bt[t]).forEach(t=>lines.push(`  ${t}: ${fmtRupee(bt[t])}`));
+    lines.push("\n─────");e.forEach(x=>lines.push(`${x.date} · ${x.type}${x.note?` (${x.note})`:""} · ${fmtRupee(x.amount)}`));
+    return lines.join("\n");
+  };
+  const buildAudSummary=()=>{
+    const lines=[`📈 @idinsayit audience — ${MONTHS[nd.getMonth()]} ${nd.getFullYear()}\n`];
+    if(audEntries.length){const last=audEntries[audEntries.length-1];lines.push(`Latest: ${last.followers.toLocaleString("en-IN")} (${last.date})`);}
+    lines.push(`Month follows: +${totFollows}  unfollows: -${totUnfollows}`);
+    if(monthChurn!=null)lines.push(`Churn: ${monthChurn} — ${churnLbl(monthChurn)}`);
+    return lines.join("\n");
+  };
+
+  const NAV=[
+    {id:"today",  icon:"☑️", label:"Today"},
+    {id:"stats",  icon:"📊", label:"Stats"},
+    {id:"reports",icon:"📋", label:"Reports"},
+    {id:"spend",  icon:"💰", label:"Spend"},
+    {id:"audience",icon:"📈",label:"Audience"},
+  ];
+
+  // shared card style
+  const card={background:"#0f0f0f",border:"1px solid #191919",borderRadius:16,padding:"16px"};
+  const sectionTitle={fontFamily:"'Syne',sans-serif",fontSize:11,fontWeight:700,letterSpacing:".16em",textTransform:"uppercase",color:"#333",marginBottom:14};
+  const inputStyle={background:"#0a0a0a",border:"1px solid #1e1e1e",borderRadius:10,color:"#f0ede6",fontFamily:"'DM Mono',monospace",fontSize:13,padding:"12px 14px",outline:"none",width:"100%"};
+
+  return(
+    <div style={{background:"#080808",minHeight:"100vh",fontFamily:"'DM Mono',monospace",color:"#f0ede6"}}>
+      <style>{`
+        *{box-sizing:border-box}
+        @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
+        .pulse{animation:pulse .3s ease}
+        input[type=date]{color-scheme:dark}
+        input[type=number]{-moz-appearance:textfield}
+        input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+        ::-webkit-scrollbar{width:0;height:0}
+        select option{background:#111}
+        .trow{display:flex;align-items:center;padding:14px 20px;gap:12px;cursor:pointer;transition:background .12s;border-bottom:1px solid #0e0e0e}
+        .trow:active{background:#111}
+        .chk{width:22px;height:22px;border-radius:6px;border:1.5px solid #222;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .22s cubic-bezier(.4,0,.2,1)}
+        .chk.on{border-color:transparent}
+        .ckm{font-size:12px;transform:scale(0);transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
+        .chk.on .ckm{transform:scale(1)}
+        .seg{display:flex;gap:2px;background:#0c0c0c;padding:3px;border-radius:10px;border:1px solid #181818;margin-bottom:16px}
+        .sb{flex:1;padding:8px 4px;border:none;border-radius:7px;background:transparent;color:#383838;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.05em;cursor:pointer;transition:all .18s;white-space:nowrap}
+        .sb.on{background:#1a1a1a;color:#f0ede6}
+        .drow{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #111}
+        .drow:last-child{border-bottom:none}
+        .erow{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid #101010;gap:10px}
+        .erow:last-child{border-bottom:none}
+        .dbtn{background:transparent;border:none;color:#222;cursor:pointer;font-size:16px;padding:4px;flex-shrink:0;transition:color .15s}
+        .dbtn:active{color:#E1306C}
+        .cta{width:100%;padding:15px;background:#f0ede6;color:#080808;border:none;border-radius:12px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;margin-top:16px;transition:opacity .15s}
+        .cta:active{opacity:.8}
+        .hbtn{padding:7px 14px;background:transparent;border:1px solid #1e1e1e;border-radius:8px;color:#404040;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.06em;cursor:pointer;transition:all .15s;white-space:nowrap}
+        .hbtn:active{border-color:#444;color:#888}
+        .hbtn.saved{background:#25D366;border-color:#25D366;color:#000}
+        .mov{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+        .mod{background:#111;border-radius:20px 20px 0 0;padding:24px 20px 44px;width:100%;max-width:500px;display:flex;flex-direction:column;border-top:1px solid #222}
+        .finput{background:#0a0a0a;border:1px solid #1e1e1e;border-radius:10px;color:#f0ede6;font-family:'DM Mono',monospace;font-size:13px;padding:12px 14px;outline:none;width:100%}
+        .finput:focus{border-color:#333}
+        .fsel{background:#0a0a0a;border:1px solid #1e1e1e;border-radius:10px;color:#f0ede6;font-family:'DM Mono',monospace;font-size:13px;padding:12px 14px;outline:none;width:100%}
+        .trrow{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #111}
+        .trrow:last-child{border-bottom:none}
+        .chart-box{background:#0a0a0a;border:1px solid #141414;border-radius:12px;padding:14px;margin-bottom:12px}
+        .lrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+        .li{display:flex;align-items:center;gap:5px;font-size:9px;color:#444;letter-spacing:.05em}
+        .ldot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+        .ast{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid #111}
+        .ast:last-child{border-bottom:none}
+      `}</style>
+
+      {/* ── HEADER ── */}
+      <div style={{padding:"52px 20px 14px",background:"#080808",position:"sticky",top:0,zIndex:50,borderBottom:"1px solid #111"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:".2em",color:"#282828",textTransform:"uppercase",marginBottom:3}}>@idinsayit</div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:"#f0ede6",lineHeight:1}}>
+              {view==="today"?"Today":view==="stats"?"Stats":view==="reports"?"Reports":view==="spend"?"Ad Spend":"Audience"}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <button className={`hbtn${saved?" saved":""}`} onClick={saveAll}>{saved?"✓":""} Save</button>
+            <button className="hbtn" onClick={doExport}>↑</button>
+            <button className="hbtn" onClick={()=>{setShowImport(true);setImportText("");setImportError("");}}>↓</button>
+          </div>
+        </div>
+        {view==="today"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#303030",letterSpacing:".07em",marginBottom:6}}>
+              <span>{fmtDate(today)}</span>
+              <span>{doneCount}/{TASKS.length}</span>
+            </div>
+            <div style={{height:3,background:"#151515",borderRadius:3,overflow:"hidden"}}>
+              <div style={{height:3,width:`${pct}%`,background:`linear-gradient(90deg,#E1306C,#f7b500)`,borderRadius:3,transition:"width .5s cubic-bezier(.4,0,.2,1)"}}/>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── SCROLL AREA ── */}
+      <div style={{paddingBottom:90,minHeight:"calc(100vh - 160px)"}}>
+
+        {/* TODAY */}
+        {view==="today"&&(
+          <div>
+            {["Instagram","Threads","WhatsApp"].map(group=>{
+              const meta=GM[group];
+              const groupDone=TASKS.filter(t=>t.group===group&&dayData.checked[t.id]).length;
+              const groupTotal=TASKS.filter(t=>t.group===group).length;
+              return(
+                <div key={group}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 20px 6px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:7,height:7,borderRadius:"50%",background:meta.color}}/>
+                      <span style={{fontFamily:"'Syne',sans-serif",fontSize:10,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#3a3a3a"}}>{meta.icon} {group}</span>
+                    </div>
+                    <span style={{fontSize:10,color:"#252525"}}>{groupDone}/{groupTotal}</span>
+                  </div>
+                  {TASKS.filter(t=>t.group===group).map(task=>{
+                    const done=!!dayData.checked[task.id],ts=dayData.times[task.id];
+                    const a=parseStored(ts),diff=a!=null?a-parseScheduled(task.scheduled):null,dl=delayLabel(diff);
+                    return(
+                      <div key={task.id} className={`trow${anim[task.id]?" pulse":""}`} onClick={()=>toggle(task.id)}>
+                        <div className={`chk${done?" on":""}`} style={done?{background:meta.color}:{}}><span className="ckm">✓</span></div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:14,color:done?"#2a2a2a":"#e0ddd6",textDecoration:done?"line-through":"none",textDecorationColor:"#222",transition:"color .2s",letterSpacing:".01em"}}>{task.label}</div>
+                          {done&&ts&&dl&&<div style={{fontSize:10,color:dl.color,marginTop:2}}>{fmt12(ts)} · {dl.text}</div>}
+                        </div>
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3,flexShrink:0}}>
+                          <span style={{fontSize:10,color:"#252525"}}>{fmt12(task.scheduled)}</span>
+                          {done&&(
+                            <span onClick={e=>openTimeEdit(e,task.id)}
+                              style={{fontSize:10,color:"#404040",border:"1px solid #1e1e1e",borderRadius:5,padding:"2px 7px",cursor:"pointer"}}>
+                              {ts?fmt12(ts):"+ time"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            <div style={{padding:"16px 20px",display:"flex",gap:10}}>
+              <button className="cta" onClick={()=>showCopy(buildDailySummary())}>Copy Day Summary</button>
+              <button onClick={()=>{if(confirm("Reset today?"))setDayData({checked:{},times:{}});}} style={{padding:"15px 18px",background:"transparent",color:"#252525",border:"1px solid #181818",borderRadius:12,fontFamily:"'DM Mono',monospace",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>Reset</button>
+            </div>
+          </div>
+        )}
+
+        {/* STATS */}
+        {view==="stats"&&(()=>{
+          const mom=Array.from({length:6},(_,i)=>{const d=new Date(nd.getFullYear(),nd.getMonth()-i,1);return{year:d.getFullYear(),month:d.getMonth(),label:MONTHS[d.getMonth()]};}).reverse();
+          const momPct=mom.map(({year,month})=>{const pf=`${year}-${pad(month+1)}`;const days=Object.keys(allData).filter(k=>k.startsWith(pf));return days.length?calcTaskStats(days,allData).pct:null;});
+          const momDly=mom.map(({year,month})=>{const pf=`${year}-${pad(month+1)}`;const days=Object.keys(allData).filter(k=>k.startsWith(pf));return days.length?calcTaskStats(days,allData).avgDelay:null;});
+          const yrs=[nd.getFullYear()-1,nd.getFullYear()].map(yr=>({year:yr,pcts:Array.from({length:12},(_,m)=>{const pf=`${yr}-${pad(m+1)}`;const days=Object.keys(allData).filter(k=>k.startsWith(pf));return days.length?calcTaskStats(days,allData).pct:null;}),dlys:Array.from({length:12},(_,m)=>{const pf=`${yr}-${pad(m+1)}`;const days=Object.keys(allData).filter(k=>k.startsWith(pf));return days.length?calcTaskStats(days,allData).avgDelay:null;})}));
+          const buildSS=()=>{const lines=[`📊 @idinsayit stats\n`];lines.push(`Week: ${weekStats?.done??0}/${weekStats?.total??0} (${weekStats?.pct??0}%)`);lines.push(`Month: ${monthStats?.done??0}/${monthStats?.total??0} (${monthStats?.pct??0}%)`);lines.push("\n─── MoM ───");mom.forEach(({label,year},i)=>{const p=momPct[i],d=momDly[i];const dl=d!=null?delayLabel(d):null;lines.push(`${label} ${year}: ${p!=null?p+"%":"–"}${dl?` · ${dl.text}`:""}`);});return lines.join("\n");};
+          return(
+            <div style={{padding:"20px 20px 0"}}>
+              <div style={{...card,marginBottom:16}}>
+                <div style={sectionTitle}>This period</div>
+                <div style={{display:"flex",justifyContent:"space-around"}}>
+                  <Ring pct={weekStats?.pct??0} color="#E1306C" size={80} stroke={6} label="Week" sub={`${weekStats?.done??0}/${weekStats?.total??0}`}/>
+                  <Ring pct={monthStats?.pct??0} color="#f7b500" size={80} stroke={6} label="Month" sub={`${monthStats?.done??0}/${monthStats?.total??0}`}/>
+                </div>
+              </div>
+              <div style={{...card,marginBottom:16}}>
+                <div style={sectionTitle}>Avg delay</div>
+                {[{label:"Week",val:weekStats?.avgDelay??null},{label:"Month",val:monthStats?.avgDelay??null}].map(row=>{const dl=row.val!=null?delayLabel(row.val):null;return(
+                  <div className="drow" key={row.label}>
+                    <span style={{fontSize:12,color:"#444"}}>{row.label}</span>
+                    {dl?<span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:dl.color}}>{dl.text}</span>:<span style={{fontSize:11,color:"#222"}}>log times to see</span>}
+                  </div>
+                );})}
+              </div>
+              <div style={sectionTitle}>Month on Month</div>
+              <div className="chart-box">
+                <div style={{fontSize:9,color:"#333",letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Completion %</div>
+                <LineChart series={[{data:momPct,color:"#f7b500"}]} xLabels={mom.map(m=>m.label)} height={110}/>
+              </div>
+              <div className="chart-box">
+                <div style={{fontSize:9,color:"#333",letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Avg Delay (mins)</div>
+                <LineChart series={[{data:momDly,color:"#9d9dff"}]} xLabels={mom.map(m=>m.label)} height={110}/>
+                <div style={{fontSize:8,color:"#222",marginTop:4}}>negative = early</div>
+              </div>
+              <div style={sectionTitle}>Year on Year</div>
+              <div className="chart-box">
+                <div style={{fontSize:9,color:"#333",letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Completion %</div>
+                <LineChart series={yrs.map((yr,i)=>({data:yr.pcts,color:i===0?"#2a2a2a":"#f7b500"}))} xLabels={MONTHS} height={110}/>
+                <div className="lrow">{yrs.map((yr,i)=><div className="li" key={yr.year}><div className="ldot" style={{background:i===0?"#2a2a2a":"#f7b500"}}/><span>{yr.year}</span></div>)}</div>
+              </div>
+              <div className="chart-box">
+                <div style={{fontSize:9,color:"#333",letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Avg Delay (mins)</div>
+                <LineChart series={yrs.map((yr,i)=>({data:yr.dlys,color:i===0?"#2a2a2a":"#9d9dff"}))} xLabels={MONTHS} height={110}/>
+                <div className="lrow">{yrs.map((yr,i)=><div className="li" key={yr.year}><div className="ldot" style={{background:i===0?"#2a2a2a":"#9d9dff"}}/><span>{yr.year}</span></div>)}</div>
+              </div>
+              <div style={{...card,marginBottom:16}}>
+                <div style={sectionTitle}>Today's log</div>
+                {TASKS.map(task=>{const done=!!dayData.checked[task.id],ts=dayData.times[task.id];const a=parseStored(ts),diff=a!=null?a-parseScheduled(task.scheduled):null,dl=delayLabel(diff);return(
+                  <div className="drow" key={task.id}>
+                    <span style={{fontSize:11,color:done?"#444":"#1e1e1e",display:"flex",gap:6,alignItems:"center"}}>
+                      <span>{done?"✅":"⬜"}</span><span>{GM[task.group].icon} {task.label}</span>
+                    </span>
+                    <span style={{fontSize:11,color:dl?.color??"#1e1e1e"}}>{ts?`${fmt12(ts)}`:done?"–":"–"}{dl?` ${dl.text}`:""}</span>
+                  </div>
+                );})}
+              </div>
+              <button className="cta" onClick={()=>showCopy(buildSS())}>Share Stats</button>
+            </div>
+          );
+        })()}
+
+        {/* REPORTS */}
+        {view==="reports"&&(
+          <div style={{padding:"20px 20px 0"}}>
+            <div className="seg">
+              {["month","year","range"].map(m=><button key={m} className={`sb${reportMode===m?" on":""}`} onClick={()=>setReportMode(m)}>{m==="month"?"Month":m==="year"?"Year":"Range"}</button>)}
+            </div>
+            {reportMode==="month"&&(
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+                <select className="fsel" value={reportMonth} onChange={e=>setReportMonth(+e.target.value)}>{MONTHS.map((mn,i)=><option key={i} value={i}>{mn}</option>)}</select>
+                <select className="fsel" value={reportYear} onChange={e=>setReportYear(+e.target.value)}>{availYears.map(y=><option key={y} value={y}>{y}</option>)}</select>
+              </div>
+            )}
+            {reportMode==="year"&&<select className="fsel" style={{marginBottom:16}} value={reportYear} onChange={e=>setReportYear(+e.target.value)}>{availYears.map(y=><option key={y} value={y}>{y}</option>)}</select>}
+            {reportMode==="range"&&(
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+                <input type="date" className="finput" value={rangeFrom} onChange={e=>setRangeFrom(e.target.value)}/>
+                <input type="date" className="finput" value={rangeTo} onChange={e=>setRangeTo(e.target.value)}/>
+              </div>
+            )}
+            {reportStats&&(
+              <>
+                <div style={{...card,marginBottom:16}}>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:9,fontWeight:700,letterSpacing:".16em",textTransform:"uppercase",color:"#333",marginBottom:8}}>{reportLabel()}</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+                    <div>
+                      <div style={{fontFamily:"'Syne',sans-serif",fontSize:44,fontWeight:800,lineHeight:1,color:reportStats.pct>=80?"#25D366":reportStats.pct>=50?"#f7b500":"#E1306C"}}>{reportStats.pct}%</div>
+                      <div style={{fontSize:11,color:"#333",marginTop:4}}>{reportStats.done}/{reportStats.total} tasks · {reportStats.daysWithData} days</div>
+                    </div>
+                    {reportStats.avgDelay!=null&&(()=>{const dl=delayLabel(reportStats.avgDelay);return(
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:9,color:"#333",letterSpacing:".1em",textTransform:"uppercase",marginBottom:3}}>Avg delay</div>
+                        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:dl.color}}>{dl.text}</div>
+                      </div>
+                    );})()}
+                  </div>
+                </div>
+                {["Instagram","Threads","WhatsApp"].map(group=>{const meta=GM[group];return(
+                  <div key={group} style={{...card,marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:12}}>
+                      <div style={{width:6,height:6,borderRadius:"50%",background:meta.color}}/>
+                      <span style={{fontFamily:"'Syne',sans-serif",fontSize:10,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#383838"}}>{meta.icon} {group}</span>
+                    </div>
+                    {TASKS.filter(t=>t.group===group).map(task=>{
+                      let td=0,tt=0,tdl=[];
+                      reportDays.forEach(day=>{const d=allData[day];if(!d)return;tt++;if(d.checked?.[task.id]){td++;const a=parseStored(d.times?.[task.id]);if(a!=null)tdl.push(a-parseScheduled(task.scheduled));}});
+                      const tp=tt?Math.round(td/tt*100):0;const avgD=tdl.length?Math.round(tdl.reduce((a,b)=>a+b,0)/tdl.length):null;const dl=avgD!=null?delayLabel(avgD):null;
+                      return(
+                        <div className="trrow" key={task.id}>
+                          <div style={{flex:1}}>
+                            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                              <span style={{fontSize:12,color:"#4a4a4a"}}>{task.label}</span>
+                              <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12,color:tp>=80?"#25D366":tp>=50?"#f7b500":"#444"}}>{tp}%</span>
+                            </div>
+                            <div style={{height:2,background:"#161616",borderRadius:2}}>
+                              <div style={{height:2,width:`${tp}%`,background:meta.color,borderRadius:2,transition:"width .5s"}}/>
+                            </div>
+                            {dl&&<div style={{fontSize:9,color:dl.color,marginTop:3}}>avg {dl.text}</div>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );})}
+                <button className="cta" onClick={()=>showCopy(buildTaskReport(reportLabel(),reportDays,allData))}>Copy {reportLabel()} Report</button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* SPEND */}
+        {view==="spend"&&(
+          <div style={{padding:"20px 20px 0"}}>
+            <div style={{...card,marginBottom:16}}>
+              <div style={sectionTitle}>Log spend</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                <input type="date" className="finput" value={spendForm.date} onChange={e=>setSpendForm(f=>({...f,date:e.target.value}))}/>
+                <input type="number" className="finput" placeholder="Amount ₹" value={spendForm.amount} onChange={e=>setSpendForm(f=>({...f,amount:e.target.value}))}/>
+              </div>
+              <select className="fsel" style={{marginBottom:8}} value={spendForm.type} onChange={e=>setSpendForm(f=>({...f,type:e.target.value}))}>{SPEND_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select>
+              {spendForm.type==="Other"&&<input className="finput" style={{marginBottom:8}} placeholder="Describe…" value={spendForm.note} onChange={e=>setSpendForm(f=>({...f,note:e.target.value}))}/>}
+              <button className="cta" style={{marginTop:4}} onClick={addSpend}>+ Add Entry</button>
+            </div>
+            <div className="seg">{["week","month","year","all"].map(p=><button key={p} className={`sb${spendPeriod===p?" on":""}`} onClick={()=>setSpendPeriod(p)}>{p==="week"?"7d":p==="month"?"Month":p==="year"?"Year":"All"}</button>)}</div>
+            {(()=>{
+              const ents=spendInPeriod(spendPeriod);const tot=spendTotal(ents);const byT=spendByType(ents);
+              const lbl=spendPeriod==="week"?"Last 7 days":spendPeriod==="month"?"This month":spendPeriod==="year"?"This year":"All time";
+              const cols={"Profile":"#E1306C","Engagement":"#9d9dff","Link Clicks":"#f7b500","Website":"#25D366","Other":"#666"};
+              return(
+                <div style={{...card,marginBottom:16}}>
+                  <div style={{fontSize:9,color:"#333",letterSpacing:".14em",textTransform:"uppercase",marginBottom:6}}>{lbl}</div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:36,color:"#f0ede6",marginBottom:14}}>{fmtRupee(tot)}</div>
+                  {SPEND_TYPES.filter(t=>byT[t]).map(t=>{const p=tot>0?Math.round(byT[t]/tot*100):0;return(
+                    <div key={t} style={{marginBottom:10}}>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}>
+                        <span style={{color:"#444"}}>{t}</span>
+                        <span style={{color:"#555"}}>{fmtRupee(byT[t])} · {p}%</span>
+                      </div>
+                      <div style={{height:3,background:"#151515",borderRadius:3}}>
+                        <div style={{height:3,width:`${p}%`,background:cols[t]||"#666",borderRadius:3,transition:"width .4s"}}/>
+                      </div>
+                    </div>
+                  );})}
+                </div>
+              );
+            })()}
+            {spendEntries.length>0&&(
+              <div style={{...card,marginBottom:16}}>
+                <div style={sectionTitle}>All entries</div>
+                {[...spendEntries].reverse().map(e=>{
+                  const cols={"Profile":"#E1306C","Engagement":"#9d9dff","Link Clicks":"#f7b500","Website":"#25D366","Other":"#666"};
+                  return(
+                    <div className="erow" key={e.id}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:cols[e.type]||"#666",flexShrink:0}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12,color:"#555"}}>{e.type}{e.note?` · ${e.note}`:""}</div>
+                        <div style={{fontSize:10,color:"#2a2a2a",marginTop:1}}>{e.date}</div>
+                      </div>
+                      <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:"#f0ede6",marginRight:4}}>{fmtRupee(e.amount)}</span>
+                      <button className="dbtn" onClick={()=>setSpendEntries(x=>x.filter(s=>s.id!==e.id))}>×</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <button className="cta" onClick={()=>showCopy(buildSpendSummary())}>Copy Spend Summary</button>
+          </div>
+        )}
+
+        {/* AUDIENCE */}
+        {view==="audience"&&(
+          <div style={{padding:"20px 20px 0"}}>
+            <div style={{...card,marginBottom:16}}>
+              <div style={sectionTitle}>Log day</div>
+              <input type="date" className="finput" style={{marginBottom:8}} value={audForm.date} onChange={e=>setAudForm(f=>({...f,date:e.target.value}))}/>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:4}}>
+                <input type="number" className="finput" placeholder="Followers" value={audForm.followers} onChange={e=>setAudForm(f=>({...f,followers:e.target.value}))}/>
+                <input type="number" className="finput" placeholder="Follows" value={audForm.follows} onChange={e=>setAudForm(f=>({...f,follows:e.target.value}))}/>
+                <input type="number" className="finput" placeholder="Unfollow" value={audForm.unfollows} onChange={e=>setAudForm(f=>({...f,unfollows:e.target.value}))}/>
+              </div>
+              <button className="cta" style={{marginTop:4}} onClick={addAud}>+ Log Day</button>
+            </div>
+
+            {monthChurn!=null&&(()=>{
+              const color=churnColor(monthChurn);const label=churnLbl(monthChurn);const pos=Math.min(monthChurn/.6,1)*100;
+              return(
+                <div style={{...card,marginBottom:16}}>
+                  <div style={{fontSize:9,color:"#333",letterSpacing:".14em",textTransform:"uppercase",marginBottom:10}}>Churn — {MONTHS[nd.getMonth()]}</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}>
+                    <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:36,color}}>{monthChurn.toFixed(2)}</span>
+                    <span style={{fontSize:12,color,letterSpacing:".04em",fontFamily:"'Syne',sans-serif",fontWeight:600}}>{label}</span>
+                  </div>
+                  <div style={{position:"relative"}}>
+                    <div style={{height:8,borderRadius:4,overflow:"hidden",display:"flex",marginBottom:4}}>
+                      {[["#25D366",15],["#a0c040",15],["#f7b500",20],["#ff8c00",20],["#E1306C",30]].map(([c,f],i)=><div key={i} style={{flex:f,background:c,opacity:.7}}/>)}
+                    </div>
+                    <div style={{position:"absolute",top:-1,left:`calc(${pos}% - 5px)`,width:10,height:10,background:"#f0ede6",borderRadius:2,boxShadow:"0 0 0 1.5px #000",transition:"left .4s"}}/>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:8,color:"#222",marginTop:6}}><span>0</span><span>0.15</span><span>0.30</span><span>0.50</span><span>0.60+</span></div>
+                </div>
+              );
+            })()}
+
+            {aud30.length>=2&&(
+              <>
+                <div className="chart-box">
+                  <div style={{fontSize:9,color:"#333",letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Followers — last 30 days</div>
+                  <LineChart series={[{data:aud30.map(e=>e.followers),color:"#f7b500"}]} xLabels={aud30.map(e=>e.date.slice(5))} height={120}/>
+                </div>
+                <div className="chart-box">
+                  <div style={{fontSize:9,color:"#333",letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Follows / Unfollows / Churn×100</div>
+                  <LineChart series={[{data:aud30.map(e=>e.follows),color:"#25D366"},{data:aud30.map(e=>e.unfollows),color:"#E1306C"},{data:aud30.map(e=>e.follows>0?Math.round(e.unfollows/e.follows*100):null),color:"#9d9dff"}]} xLabels={aud30.map(e=>e.date.slice(5))} height={120}/>
+                  <div className="lrow">{[["#25D366","Follows"],["#E1306C","Unfollows"],["#9d9dff","Churn×100"]].map(([c,l])=><div className="li" key={l}><div className="ldot" style={{background:c}}/><span>{l}</span></div>)}</div>
+                </div>
+              </>
+            )}
+
+            {(()=>{
+              const mom=Array.from({length:6},(_,i)=>{const d=new Date(nd.getFullYear(),nd.getMonth()-i,1);return{year:d.getFullYear(),month:d.getMonth(),label:MONTHS[d.getMonth()]};}).reverse();
+              const getM=(y,m)=>audEntries.filter(e=>{const d=new Date(e.date+"T00:00:00");return d.getFullYear()===y&&d.getMonth()===m;});
+              const momFE=mom.map(({year,month})=>{const e=getM(year,month);return e.length?e[e.length-1].followers:null;});
+              const momNet=mom.map(({year,month})=>{const e=getM(year,month);if(!e.length)return null;return e.reduce((s,x)=>s+x.follows,0)-e.reduce((s,x)=>s+x.unfollows,0);});
+              const momCR=mom.map(({year,month})=>{const e=getM(year,month);if(!e.length)return null;const f=e.reduce((s,x)=>s+x.follows,0),u=e.reduce((s,x)=>s+x.unfollows,0);return f>0?Math.round(u/f*100)/100:null;});
+              if(!momFE.some(v=>v!=null))return null;
+              return(
+                <>
+                  <div style={{...sectionTitle,marginTop:4}}>Month on Month</div>
+                  <div className="chart-box"><div style={{fontSize:9,color:"#333",letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Followers end of month</div><LineChart series={[{data:momFE,color:"#f7b500"}]} xLabels={mom.map(m=>m.label)} height={110}/></div>
+                  <div className="chart-box"><div style={{fontSize:9,color:"#333",letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Net growth</div><LineChart series={[{data:momNet,color:"#25D366"}]} xLabels={mom.map(m=>m.label)} height={110}/></div>
+                  <div className="chart-box"><div style={{fontSize:9,color:"#333",letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Churn rate</div><LineChart series={[{data:momCR,color:"#E1306C"}]} xLabels={mom.map(m=>m.label)} height={110}/></div>
+                </>
+              );
+            })()}
+
+            {(()=>{
+              const yrs=[nd.getFullYear()-1,nd.getFullYear()].filter(yr=>audEntries.some(e=>new Date(e.date+"T00:00:00").getFullYear()===yr));
+              if(!yrs.length)return null;
+              const getM=(y,m)=>audEntries.filter(e=>{const d=new Date(e.date+"T00:00:00");return d.getFullYear()===y&&d.getMonth()===m;});
+              const yrF=yrs.map(yr=>({year:yr,data:Array.from({length:12},(_,m)=>{const e=getM(yr,m);return e.length?e[e.length-1].followers:null;})}));
+              const yrC=yrs.map(yr=>({year:yr,data:Array.from({length:12},(_,m)=>{const e=getM(yr,m);if(!e.length)return null;const f=e.reduce((s,x)=>s+x.follows,0),u=e.reduce((s,x)=>s+x.unfollows,0);return f>0?Math.round(u/f*100)/100:null;})}));
+              const cols=["#2a2a2a","#f7b500"],ccols=["#2a2a2a","#E1306C"];
+              return(
+                <>
+                  <div style={{...sectionTitle,marginTop:4}}>Year on Year</div>
+                  <div className="chart-box">
+                    <div style={{fontSize:9,color:"#333",letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Follower count by month</div>
+                    <LineChart series={yrF.map((yr,i)=>({data:yr.data,color:cols[i]}))} xLabels={MONTHS} height={120}/>
+                    <div className="lrow">{yrF.map((yr,i)=><div className="li" key={yr.year}><div className="ldot" style={{background:cols[i]}}/><span>{yr.year}</span></div>)}</div>
+                  </div>
+                  <div className="chart-box">
+                    <div style={{fontSize:9,color:"#333",letterSpacing:".1em",textTransform:"uppercase",marginBottom:8}}>Churn rate by month</div>
+                    <LineChart series={yrC.map((yr,i)=>({data:yr.data,color:ccols[i]}))} xLabels={MONTHS} height={120}/>
+                    <div className="lrow">{yrC.map((yr,i)=><div className="li" key={yr.year}><div className="ldot" style={{background:ccols[i]}}/><span>{yr.year}</span></div>)}</div>
+                  </div>
+                </>
+              );
+            })()}
+
+            {curMonthAud.length>0&&(
+              <div style={{...card,marginBottom:16}}>
+                <div style={sectionTitle}>{MONTHS[nd.getMonth()]} stats</div>
+                {[{label:"Total follows",val:totFollows,color:"#25D366"},{label:"Total unfollows",val:totUnfollows,color:"#E1306C"},{label:"Net change",val:totFollows-totUnfollows,color:totFollows-totUnfollows>=0?"#25D366":"#E1306C"}].map(row=>(
+                  <div className="ast" key={row.label}>
+                    <span style={{fontSize:12,color:"#444"}}>{row.label}</span>
+                    <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:row.color}}>{row.val>0?"+":""}{row.val}</span>
+                  </div>
+                ))}
+                {audEntries.length>0&&(()=>{const last=audEntries[audEntries.length-1];return<div className="ast"><span style={{fontSize:12,color:"#444"}}>Latest count</span><span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:"#f0ede6"}}>{last.followers.toLocaleString("en-IN")}</span></div>;})()}
+              </div>
+            )}
+
+            {audEntries.length>0&&(
+              <div style={{...card,marginBottom:16}}>
+                <div style={sectionTitle}>Daily log</div>
+                {[...audEntries].reverse().map(e=>{const cr=e.follows>0?(e.unfollows/e.follows).toFixed(2):"-";const crN=e.follows>0?e.unfollows/e.follows:null;return(
+                  <div className="erow" key={e.id}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <span style={{fontSize:12,color:"#555"}}>{e.date}</span>
+                        <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12,color:"#f0ede6"}}>{e.followers.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div style={{fontSize:10,color:"#2a2a2a",marginTop:2}}>
+                        <span style={{color:"#25D366"}}>+{e.follows}</span> <span style={{color:"#333"}}>·</span> <span style={{color:"#E1306C"}}>-{e.unfollows}</span>
+                        {crN!=null&&<span style={{color:churnColor(crN),marginLeft:6}}>churn {cr}</span>}
+                      </div>
+                    </div>
+                    <button className="dbtn" onClick={()=>setAudEntries(x=>x.filter(a=>a.id!==e.id))}>×</button>
+                  </div>
+                );})}
+              </div>
+            )}
+            <button className="cta" onClick={()=>showCopy(buildAudSummary())}>Copy Audience Summary</button>
+          </div>
+        )}
+
+      </div>{/* end scroll area */}
+
+      {/* ── BOTTOM NAV ── */}
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#080808",borderTop:"1px solid #141414",display:"flex",zIndex:100,paddingBottom:"env(safe-area-inset-bottom)"}}>
+        {NAV.map(n=>(
+          <button key={n.id} onClick={()=>setView(n.id)}
+            style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"10px 4px 12px",background:"none",border:"none",cursor:"pointer",transition:"opacity .15s",opacity:view===n.id?1:.3}}>
+            <span style={{fontSize:18,lineHeight:1}}>{n.icon}</span>
+            <span style={{fontFamily:"'DM Mono',monospace",fontSize:8,letterSpacing:".06em",color:view===n.id?"#f0ede6":"#555",fontWeight:view===n.id?"500":"400"}}>{n.label}</span>
+            {view===n.id&&<div style={{width:16,height:2,background:"#f0ede6",borderRadius:1,marginTop:1}}/>}
+          </button>
+        ))}
+      </div>
+
+      {/* ── TIME MODAL ── */}
+      {editingTime&&editTask&&(
+        <div className="mov" onClick={()=>setEditingTime(null)}>
+          <div className="mod" onClick={e=>e.stopPropagation()}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:700,marginBottom:2}}>{editTask.label}</div>
+            <div style={{fontSize:11,color:"#333",marginBottom:18,letterSpacing:".04em"}}>Scheduled {fmt12(editTask.scheduled)} — when did you do it?</div>
+            <input ref={inputRef} placeholder="e.g. 9:45 or 9:45am" value={timeInput}
+              onChange={e=>{setTimeInput(e.target.value);setTimeError("");}}
+              onKeyDown={e=>{if(e.key==="Enter")saveTime(false);if(e.key==="Escape")setEditingTime(null);}}
+              style={{...inputStyle,fontSize:24,textAlign:"center",letterSpacing:".1em",padding:"16px",marginBottom:6}}/>
+            {timeError&&<div style={{fontSize:11,color:"#E1306C",marginBottom:8}}>{timeError}</div>}
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <button onClick={()=>saveTime(true)} style={{flex:1,padding:14,background:"#f0ede6",color:"#080808",border:"none",borderRadius:12,fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:700,cursor:"pointer"}}>Use Now</button>
+              <button onClick={()=>saveTime(false)} style={{flex:1,padding:14,background:"#1a1a1a",color:"#f0ede6",border:"none",borderRadius:12,fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:700,cursor:"pointer"}}>Save</button>
+              <button onClick={()=>setEditingTime(null)} style={{padding:"14px 16px",background:"transparent",color:"#333",border:"1px solid #1e1e1e",borderRadius:12,cursor:"pointer"}}>✕</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── EXPORT MODAL ── */}
+      {showExport&&(
+        <div className="mov" onClick={()=>setShowExport(false)}>
+          <div className="mod" onClick={e=>e.stopPropagation()} style={{maxHeight:"80vh"}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:700,marginBottom:2}}>Export Data</div>
+            <div style={{fontSize:11,color:"#333",marginBottom:14,letterSpacing:".04em"}}>Tap the text → select all → copy → save in Notes</div>
+            <textarea readOnly value={exportText} onClick={e=>e.target.select()} style={{flex:1,minHeight:200,background:"#0a0a0a",border:"1px solid #1e1e1e",borderRadius:10,color:"#f0ede6",fontFamily:"'DM Mono',monospace",fontSize:10,padding:12,outline:"none",resize:"none",lineHeight:1.5}}/>
+            <button onClick={()=>setShowExport(false)} style={{marginTop:12,width:"100%",padding:14,background:"#f0ede6",color:"#080808",border:"none",borderRadius:12,fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:700,cursor:"pointer"}}>Done</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── IMPORT MODAL ── */}
+      {showImport&&(
+        <div className="mov" onClick={()=>setShowImport(false)}>
+          <div className="mod" onClick={e=>e.stopPropagation()} style={{maxHeight:"80vh"}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:700,marginBottom:2}}>Import Data</div>
+            <div style={{fontSize:11,color:"#333",marginBottom:14,letterSpacing:".04em"}}>Paste your exported JSON to restore everything</div>
+            <textarea value={importText} onChange={e=>{setImportText(e.target.value);setImportError("");}} placeholder="Paste export JSON here…"
+              style={{flex:1,minHeight:200,background:"#0a0a0a",border:"1px solid #1e1e1e",borderRadius:10,color:"#f0ede6",fontFamily:"'DM Mono',monospace",fontSize:10,padding:12,outline:"none",resize:"none",lineHeight:1.5}}/>
+            {importError&&<div style={{fontSize:11,color:"#E1306C",marginTop:6}}>{importError}</div>}
+            <div style={{display:"flex",gap:8,marginTop:12}}>
+              <button onClick={doImport} style={{flex:1,padding:14,background:"#f0ede6",color:"#080808",border:"none",borderRadius:12,fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:700,cursor:"pointer"}}>Import</button>
+              <button onClick={()=>setShowImport(false)} style={{padding:"14px 18px",background:"transparent",color:"#333",border:"1px solid #1e1e1e",borderRadius:12,cursor:"pointer"}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── COPY / TEXT MODAL ── */}
+      {showText&&(
+        <div className="mov" onClick={()=>setShowText(false)}>
+          <div className="mod" onClick={e=>e.stopPropagation()} style={{maxHeight:"80vh"}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:700,marginBottom:2}}>Summary</div>
+            <div style={{fontSize:11,color:"#333",marginBottom:14,letterSpacing:".04em"}}>Tap text → select all → copy</div>
+            <textarea readOnly value={textContent} onClick={e=>e.target.select()}
+              style={{flex:1,minHeight:220,background:"#0a0a0a",border:"1px solid #1e1e1e",borderRadius:10,color:"#f0ede6",fontFamily:"'DM Mono',monospace",fontSize:11,padding:12,outline:"none",resize:"none",lineHeight:1.6}}/>
+            <button onClick={()=>setShowText(false)} style={{marginTop:12,width:"100%",padding:14,background:"#f0ede6",color:"#080808",border:"none",borderRadius:12,fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:700,cursor:"pointer"}}>Done</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Root(){
+  const[unlocked,setUnlocked]=useState(false);
+  useEffect(()=>{if(localStorage.getItem("iis_v2_auth")==="1")setUnlocked(true);},[]);
+  return unlocked?<App/>:<LockScreen onUnlock={()=>setUnlocked(true)}/>;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<Root/>);
+</script>
+</body>
+</html>
